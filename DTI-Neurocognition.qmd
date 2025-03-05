@@ -1,0 +1,299 @@
+---
+title: "Association of Brain Function and Structure with Neuropsychological Measures"
+author: "Bibin Joseph"
+format: pdf
+fontsize: 8pt
+editor: visual
+header-includes:
+  - \usepackage{titling}
+  - \pretitle{\begin{center}\fontsize{8}{10}\selectfont}
+  - \posttitle{\par\end{center}}
+---
+
+## **Introduction**
+
+This study aims to understand the association between brain white matter structure and neurocognitive measures associated with Hurler syndrome, a rare genetic disorder. In this study, we aim to utilize DTI metrics like fractional anisotropy (FA) and mean diffusivity (MD) to understand the brain's white matter integrity in correlation with neurocognitive scores in the study population. The research aims to explore if there is an association between these DTI measures and neurocognitive performance. The study also aims to find how this relationship may vary between patients with severe and attenuated forms of Hurler syndrome. This investigation is critical for providing insights into the neurological impacts of Hurler syndrome and the potential influence of treatment modalities on cognitive outcomes.
+
+## **Dataset**
+
+The data contains 14 observations and 16 variables.  The dataset includes information from clinic visits of patients with Hurler syndrome, categorized into severe and attenuated groups based on their clinical presentation and treatment history. Key variables include patient demographics like age, sex, and medical risk factors. DTI measures are the FA and MD variables, and the neurocognitive scores given in variables FSIQ(for IQ), CVLT(memory), JLO(Spatial Ability), and TOVA (attention) are also present in the dataset. The scores have been normalized to a mean of 100 and a standard deviation of 15.
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE,include=FALSE}
+# Load the necessary libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(car)
+library(MASS)
+library(RColorBrewer)
+library(reshape2)
+library(broom)
+library(knitr)
+library(kableExtra)
+
+
+data<-read.csv("DTI data.csv")
+
+# Exploratory Data Analysis (EDA)
+summary(data)
+str(data)
+colnames(data)
+colSums(is.na(data))
+```
+
+## **Exploratory Data Analysis**
+
+```{r,echo=FALSE}
+
+#######################Sumamry Statitics for table1 ############################
+
+# Function to calculate statistics with descriptive labels
+calculate_stats <- function(data_subset, group_name) {
+  data_subset %>%
+    summarise(
+      Group = group_name,
+      `Number of Participants` = n(),
+      `Mean Age (months)` = mean(AGE..mo., na.rm = TRUE),
+      `Age SD (months)` = sd(AGE..mo., na.rm = TRUE),
+      `Percentage Male (%)` = mean(Sex == "male", na.rm = TRUE) * 100,
+      `Percentage Female (%)` = mean(Sex == "female", na.rm = TRUE) * 100,
+      `Mean FA` = mean(FA, na.rm = TRUE),
+      `SD FA` = sd(FA, na.rm = TRUE),
+      `Mean MD` = mean(MD, na.rm = TRUE),
+      `SD MD` = sd(MD, na.rm = TRUE),
+      `Mean TOVAd` = mean(TOVAd, na.rm = TRUE),
+      `SD TOVAd` = sd(TOVAd, na.rm = TRUE),
+      `Mean TOVA Omission Errors` = mean(TOVAOm, na.rm = TRUE),
+      `SD TOVA Omission Errors` = sd(TOVAOm, na.rm = TRUE),
+      `Mean TOVA Commission Errors` = mean(TOVACom, na.rm = TRUE),
+      `SD TOVA Commission Errors` = sd(TOVACom, na.rm = TRUE),
+      `Mean TOVA Response Time` = mean(TOVART, na.rm = TRUE),
+      `SD TOVA Response Time` = sd(TOVART, na.rm = TRUE),
+      `Mean TOVA Variability` = mean(TovaVAR, na.rm = TRUE),
+      `SD TOVA Variability` = sd(TovaVAR, na.rm = TRUE)
+    )
+}
+
+# Calculate statistics for Total, Severe, and Attenuated groups
+total_stats <- calculate_stats(data, "Total")
+severe_stats <- calculate_stats(data %>% filter(Dis == "Severe"), "Severe Group")
+attenuated_stats <- calculate_stats(data %>% filter(Dis == "Attenuated"), "Attenuated Group")
+
+# Combine the statistics into one dataframe and reformat for display
+sum_statistics <- bind_rows(total_stats, severe_stats, attenuated_stats) %>%
+  pivot_longer(-Group, names_to = "Variable", values_to = "Value") %>%
+  pivot_wider(names_from = Group, values_from = Value) %>%
+  mutate(across(-Variable, ~ round(as.numeric(.), 3)))
+
+```
+
+```{r,echo=FALSE}
+
+# Display the table with a caption
+kable(sum_statistics, caption = "Summary Statistics by Group ")
+```
+
+The data contains 14 observations and 16 variables, with no missing data. [Table 1](#_Table_1._Summary) offers a detailed statistical summary of participants divided into two groups based on the severity of Hurler syndrome: severe and attenuated. In terms of demographics, the severe group has fewer males (29%) than the attenuated group (57%) and, conversely, more females (71%) than the attenuated group (43%). This gender disparity could potentially influence the results, given that gender-specific responses to treatment or disease progression are there in clinical studies. Age distribution shows that participants in the severe group are generally younger, with an average age of 11.70 months, compared to 16.60 months in the attenuated group. The standard deviations for age are relatively close (4.92 months for the severe group and 4.55 months for the attenuated group), indicating a similar age range within each group. Looking at the neurocognitive and DTI metrics, the average Fractional Anisotropy (FA) values are lower in the severe group (0.51 with a standard deviation of 0.11) than in the attenuated group (0.63 with a standard deviation of 0.05), suggesting better white matter integrity in the attenuated group.
+
+Conversely, Mean Diffusivity (MD) values are higher in the severe group (1.13 with a standard deviation of 0.14) compared to the attenuated group (0.96 with a standard deviation of 0.11), typically indicating poorer white matter health in the severe group. There are notable differences between the groups for the neurocognitive scores measured by tests like TOVA. The severe group scores are lower across most measures, particularly noticeable in TOVAd scores (70.60 vs. 84.40), TOVAOm (58.40 vs. 82.00), and TovaVAR (69.70 vs. 88.90).
+
+[Figure 1](#_Figure1:_Scatterplot_FA) shows the relationships between brain white matter integrity, measured by Fractional Anisotropy (FA) and Mean Diffusivity (MD), and neurocognitive scores, represented by Full-Scale IQ (FSIQ) and California Verbal Learning Test (CVLT) scores, for patients with Hurler syndrome. The participants are differentiated into severe and attenuated groups, depicted by red and blue points, respectively. In the FA vs. FSIQ plot, there is a visible positive correlation for both patient groups, suggesting that higher FA values, which imply better organized white matter tracts, are associated with higher FSIQ scores, indicating better overall cognitive functioning. The slope for the attenuated group (blue points) appears steeper, indicating a potentially stronger association between FA and FSIQ scores than the severe group. Conversely, the MD vs. FSIQ plot shows a negative correlation, which is more in the severe group. Higher MD values indicate less restricted water diffusion and possibly less healthy white matter correspond to lower FSIQ scores. This suggests that white matter damage or disorganization could adversely affect cognitive function more in the severe group. There is no notable trend in the FA vs. CVLT plot, with data points scattered horizontally, suggesting no clear association between FA values and memory scores measured by the CVLT. The MD vs. CVLT plot also reflects a lack of evident correlation. Both severe and attenuated groups do not display any noticeable pattern indicating a relationship between mean diffusivity and verbal learning capabilities.
+
+```{r,echo=FALSE,message=FALSE, multi-panel-plots, fig.width=8, fig.height=6}
+# Adjust margins if needed (bottom, left, top, right)
+par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
+
+# Plot 1: FA vs. FSIQ
+with(data, {
+  plot(FA, FSIQ, main = "FA vs. FSIQ", xlab = "FA", ylab = "FSIQ",
+       col = ifelse(Dis == "Severe", "red", "blue"))
+  abline(lm(FSIQ ~ FA, data = data), col = "black")
+  legend("bottomright", legend = c("Severe", "Attenuated"),
+         fill = c("red", "blue"), cex = 0.75)
+})
+
+# Plot 2: MD vs. FSIQ
+with(data, {
+  plot(MD, FSIQ, main = "MD vs. FSIQ", xlab = "MD", ylab = "FSIQ",
+       col = ifelse(Dis == "Severe", "red", "blue"))
+  abline(lm(FSIQ ~ MD, data = data), col = "black")
+  legend("bottomright", legend = c("Severe", "Attenuated"),
+         fill = c("red", "blue"), cex = 0.75)
+})
+
+# Plot 3: FA vs. CVLT
+with(data, {
+  plot(FA, CVLT, main = "FA vs. CVLT", xlab = "FA", ylab = "CVLT",
+       col = ifelse(Dis == "Severe", "red", "blue"))
+  abline(lm(CVLT ~ FA, data = data), col = "black")
+  legend("bottomright", legend = c("Severe", "Attenuated"),
+         fill = c("red", "blue"), cex = 0.75)
+})
+
+# Plot 4: MD vs. CVLT
+with(data, {
+  plot(MD, CVLT, main = "MD vs. CVLT", xlab = "MD", ylab = "CVLT",
+       col = ifelse(Dis == "Severe", "red", "blue"))
+  abline(lm(CVLT ~ MD, data = data), col = "black")
+  legend("bottomright", legend = c("Severe", "Attenuated"),
+         fill = c("red", "blue"), cex = 0.75)
+})
+
+```
+
+[Figure 2](#_Figure_2:_QQ) shows the series of Q-Q (quantile-quantile) plots used to evaluate the normality of the distributions of various variables, segmented by group (severe and Attenuated). Each plot corresponds to a different combination of neurocognitive score and Diffusion Tensor Imaging (DTI) measure (either FA or MD) for both groups of patients with Hurler syndrome. The horizontal axis shows the theoretical quantiles of a normal distribution, while the vertical axis shows the observed quantiles of the dataset for each measure: FA, MD, FSIQ, CVLT, TOVA d-prime, TOVA omissions, TOVA commissions, TOVA reaction time, and TOVA variability scores. Both FA and MD Q-Q plots for the severe and attenuated groups show points that generally follow the line, indicating normal distribution, with slight deviations, particularly at the ends. This suggests that FA and MD values for both groups are approximately normally distributed with potential outliers or extreme values. The FSIQ, CVLT, and various TOVA score Q-Q plots for both groups also largely follow the expected line, especially in the middle range of the data, which suggests that the central portions of these distributions are consistent with a normal distribution. JLO and TOVAOm show a significant deviation from a normal distribution. I have conducted the Shapiro-Wilk test for normality, and the results in Table 2. support the findings in the QQ plot. 
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,qq-plots, fig.width=12, fig.height=16}
+# Setting up the plotting area to accommodate 2 plots side by side
+par(mfrow = c(10, 2), mar = c(4, 4, 2, 1))
+
+# Function to generate Q-Q plots for a variable for both groups
+generate_qq_plots <- function(variable, variable_name) {
+        # Q-Q plot for the Severe group
+        qqnorm(variable[data$Dis == "Severe"], main=paste("Q-Q Plot for", variable_name, "- Severe"), col="red")
+        qqline(variable[data$Dis == "Severe"], col="red")
+        # Q-Q plot for the Attenuated group
+        qqnorm(variable[data$Dis == "Attenuated"], main=paste("Q-Q Plot for", variable_name, "- Attenuated"), col="blue")
+        qqline(variable[data$Dis == "Attenuated"], col="blue")
+}
+
+# FA
+generate_qq_plots(data$FA, "FA")
+# MD
+generate_qq_plots(data$MD, "MD")
+# FSIQ
+generate_qq_plots(data$FSIQ, "FSIQ")
+# CVLT
+generate_qq_plots(data$CVLT, "CVLT")
+# JLO
+generate_qq_plots(data$JLO, "JLO")
+# TOVAd
+generate_qq_plots(data$TOVAd, "TOVAd")
+# TOVAOm
+generate_qq_plots(data$TOVAOm, "TOVAOm")
+# TOVACom
+generate_qq_plots(data$TOVACom, "TOVACom")
+# TOVART
+generate_qq_plots(data$TOVART, "TOVART")
+# TovaVAR
+generate_qq_plots(data$TovaVAR, "TovaVAR")
+```
+
+[Figure 3](#_Figure_3:_Correlation). shows a correlation matrix heatmap, providing insights into the relationships between various neurocognitive scores and Diffusion Tensor Imaging (DTI) metrics, specifically Fractional Anisotropy (FA) and Mean Diffusivity (MD), in individuals diagnosed with Hurler Syndrome. The darker shades of red indicate stronger positive correlations, and darker shades of blue signify stronger negative correlations, indicating that the other tends to decrease as one variable increases. Lighter shades of red, blue, or white suggest weaker or insignificant linear relationships between the variables. Varying degrees of positive correlations are evident between FA and cognitive scores, whereas MD exhibits a mix of positive and negative correlations with neurocognitive scores.
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,fig.width=8, fig.height=6}
+
+# Correlation matrix
+cor_matrix <- cor(data[,c("FA", "MD", "FSIQ", "CVLT", "JLO", "TOVAd", "TOVAOm", "TOVACom", "TOVART", "TovaVAR")], use="complete.obs")
+
+# Heatmap to show corelation 
+
+melted_cor_matrix <- melt(cor_matrix)
+ggplot(melted_cor_matrix, aes(Var1, Var2, fill=value)) + 
+  geom_tile() + 
+  scale_fill_gradient2(midpoint=0, low="#084c61", mid="white", high="#db3a34", 
+                       breaks=seq(-1, 1, by=0.5), limit=c(-1,1)) +
+        ggtitle("Correlation Matrix of DTI Metrics and Neurocognitive Scores in Hurler Syndrome")+
+  theme_minimal() + 
+        theme(axis.text.x = element_text(angle = 45, hjust = 0.5, vjust = 0.5)) +
+        xlab(NULL) +  
+        ylab(NULL)   
+```
+
+## **Methods**
+
+In this study, we employed separate linear regression models to investigate the relationship between diffusion tensor imaging (DTI) metrics (specifically fractional anisotropy, FA, and mean diffusivity, MD) and various neurocognitive outcome variables. These outcome variables included Full-Scale Intelligence Quotient (FSIQ), California Verbal Learning Test (CVLT), Judgment of Line Orientation (JLO), and Test of Variables of Attention (TOVA) sub-scores. For each DTI metric (FA and MD), we defined multiple regression models to examine its association with each neurocognitive outcome variable. The models were structured to include the DTI metric, disease severity (Group), their interaction (DTI metric × Group), as well as covariates such as age, sex, and medical risk factors. For FA, the models were named according to the neurocognitive outcome variable being investigated (e.g., FSIQ_FA, CVLT_FA, etc.), while for MD, similar models were defined with the suffix "\_MD" (e.g., FSIQ_MD, CVLT_MD, etc.). This approach allowed us to explore how FA and MD, individually, influence neurocognitive functioning across different cognitive domains while also considering the moderating effect of disease severity. Additionally, by accounting for potential confounding factors, we aimed to ensure the robustness and validity of our findings. The statistical significance of the regression coefficients was determined using p-values with an alpha of 0.05. The R-squared (R²) and adjusted R-squared (adj. R²) values are used to examine the adequacy of model fit. We performed diagnostic checks to ensure that our models met the assumptions of linear regression. These checks included assessing linearity, independence of errors, homoscedasticity (constant variance of errors), and normality of residuals. We employed various diagnostic plots, such as scatterplots of observed vs. predicted values and residuals vs. fitted values, to inspect the model's adherence to these assumptions visually. Additionally, we calculated the Variance Inflation Factor (VIF) to identify and address multicollinearity issues if present. Statistical analysis was conducted using R Studio 4.3.3
+
+## **Results**
+
+```{r,echo=FALSE,include=FALSE}
+###################### Individual models #######################################
+
+# Define models with FA
+models_with_FA <- list(
+  FSIQ_FA    = lm(FSIQ ~ FA + Group + FA:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data),
+  CVLT_FA    = lm(CVLT ~ FA + Group + FA:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data),
+  JLO_FA     = lm(JLO ~ FA + Group + FA:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data),
+  TOVAd_FA   = lm(TOVAd ~ FA + Group + FA:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data),
+  TOVAOm_FA  = lm(TOVAOm ~ FA + Group + FA:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data),
+  TOVACom_FA = lm(TOVACom ~ FA + Group + FA:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data),
+  TOVART_FA  = lm(TOVART ~ FA + Group + FA:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data),
+  TovaVAR_FA = lm(TovaVAR ~ FA + Group + FA:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data)
+)
+
+# Define models with MD
+models_with_MD <- list(
+  FSIQ_MD    = lm(FSIQ ~ MD + Group + MD:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data),
+  CVLT_MD    = lm(CVLT ~ MD + Group + MD:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data),
+  JLO_MD     = lm(JLO ~ MD + Group + MD:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data),
+  TOVAd_MD   = lm(TOVAd ~ MD + Group + MD:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data),
+  TOVAOm_MD  = lm(TOVAOm ~ MD + Group + MD:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data),
+  TOVACom_MD = lm(TOVACom ~ MD + Group + MD:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data),
+  TOVART_MD  = lm(TOVART ~ MD + Group + MD:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data),
+  TovaVAR_MD = lm(TovaVAR ~ MD + Group + MD:Group + AGE..mo. + Sex + Medical.Risk.Factors, data = data)
+)
+
+# Optional: Diagnostic Plots for each MD model
+par(mfrow = c(2,2))
+lapply(names(models_with_MD), function(name) {
+  model <- models_with_MD[[name]]
+  print(summary(model))
+  plot(model)
+  mtext(paste("Diagnostic Plots for", name), side = 3, line = -3, outer = TRUE, cex = 1.5)
+})
+
+# Function to extract tidy summaries with descriptive labels
+get_model_summary <- function(model_list) {
+  do.call(rbind, lapply(names(model_list), function(model_name) {
+    model <- model_list[[model_name]]
+    tidy_summary <- tidy(model)
+    tidy_summary$Model <- model_name
+    glance_summary <- glance(model)
+    tidy_summary$`R-squared` <- glance_summary$r.squared
+    tidy_summary$`Adjusted R-squared` <- glance_summary$adj.r.squared
+    return(tidy_summary)
+  }))
+}
+
+# Combine FA and MD model summaries
+summary_table_FA <- get_model_summary(models_with_FA)
+summary_table_MD <- get_model_summary(models_with_MD)
+
+# Combine all summaries into one table and rename columns
+all_summaries <- bind_rows(summary_table_FA, summary_table_MD) %>%
+  rename(
+    Predictor         = term,
+    Coefficient       = estimate,
+    `Standard Error`  = std.error,
+    `t-value`         = statistic,
+    `p-value`         = p.value,
+    Model_Name        = Model
+  ) %>%
+  mutate(across(where(is.numeric), ~ round(., 3))) %>%
+  # Only show Model_Name, R-squared, and Adjusted R-squared on the (Intercept) row
+  mutate(
+    Model_Name         = if_else(Predictor == "(Intercept)", Model_Name, ""),
+    `R-squared`        = if_else(Predictor == "(Intercept)", as.character(`R-squared`), ""),
+    `Adjusted R-squared` = if_else(Predictor == "(Intercept)", as.character(`Adjusted R-squared`), "")
+  )
+
+
+```
+
+```{r,echo=FALSE}
+kable(all_summaries, caption = "Combined FA and MD Model Summaries" ) 
+```
+
+[Table 2.](#_Table_3_.) shows the linear regression analyses examining the associations between diffusion tensor imaging (DTI) metrics—fractional anisotropy (FA) and mean diffusivity (MD)—and various neurocognitive outcomes across different disease severity groups have been summarized. The results predominantly indicated that both main effects and interaction terms for FA and MD did not reach statistical significance, with most p-values exceeding the 0.05 threshold. This suggests that neither FA nor MD, nor their interactions with different groups, significantly predict the outcomes across the models studied.
+
+However, specific analyses did reveal some associations of note, though these were not uniformly statistically significant. For fractional anisotropy (FA), a notable positive effect was observed for full-scale IQ (FSIQ) with an estimate of 403.03 and a standard error of 200.81, resulting in a t-value of 2.01 and a marginally significant p-value of 0.08. The interaction term between FA and group showed a negative trend for FSIQ, though it was marginally significant (β = -198.50, SE = 103.63, t = -1.92, p = 0.10). Additionally, FA showed a positive, though not significant, influence on Judgment of Line Orientation (JLO) scores (β = 535.33, SE = 299.07, t = 1.79, p = 0.12), with the FA:Group interaction term also indicating a negative trend (β = -292.60, SE = 154.34, t = -1.90, p = 0.10). FSIQ displayed an R-squared of 0.63 and an adjusted R-squared of 0.31, indicating a moderate fit.
+
+Mean diffusivity (MD) did not show significant effects on FSIQ or other cognitive tests. The only significant finding involving MD appeared in the Test of Variables of Attention (TOVA) concerning the impact of medical risk factors on commission errors in the TOVA Composite models for both FA and MD. In the TOVACom_FA model, medical risk factors were significantly predictive (β = 20.73, SE = 6.43, t = 3.22, p = 0.01), explaining a substantial portion of variance with an R-squared of 0.70 and an adjusted R-squared of 0.43. Similarly, in the TOVACom_MD model, medical risk factors also proved significant (β = 17.66, SE = 6.24, t = 2.83, p = 0.03) with an R-squared of 0.67 and an adjusted R-squared of 0.38.
+
+These results indicate that while FA and MD generally do not significantly influence neurocognitive outcomes across different groups, medical risk factors consistently show a significant impact on the TOVA Composite scores, suggesting their strong influence independent of the diffusion measures.
+
+## **Conclusions and Discussion**
+
+This study investigated the relationship between brain white matter structure, as quantified by diffusion tensor imaging (DTI) metrics fractional anisotropy (FA) and mean diffusivity (MD), and various neurocognitive measures in patients with Hurler syndrome. Despite the theoretical premise that DTI metrics would correlate with cognitive performance, reflecting the integrity of white matter pathways, the results predominantly indicated no significant association between these metrics and neurocognitive outcomes. The exception was found in the influence of medical risk factors, which showed significant effects in models for the TOVA Composite scores, suggesting that clinical severity and treatment history may have more profound impacts on certain cognitive outcomes than the microstructural properties of white matter. The analysis demonstrated that neither FA nor MD significantly predicted the neurocognitive scores across most tests, with R-squared values indicating modest explanatory power in the best scenarios. These findings highlight the complexity of brain-behavior relationships in Hurler syndrome and suggest that factors beyond simple DTI measures are influential, potentially encompassing genetic variability, environmental factors, and the nature of medical interventions.
+
+The study's limitations are primarily related to its small sample size, which limits the statistical power and the generalizability of the findings. With only 14 participants, individual variability could disproportionately influence the results, and findings may not represent the broader population with Hurler syndrome. Additionally, the simplicity of using only two DTI metrics, fractional anisotropy and mean diffusivity, might not fully capture the complex brain pathology associated with the syndrome. The study's cross-sectional design only provides a snapshot in time, which is less informative of the dynamic nature of neurodevelopmental changes in pediatric conditions like Hurler syndrome. Potential confounding variables such as socioeconomic status, exact treatment regimens, and educational interventions were not controlled for, which could also influence cognitive outcomes. These factors suggest the need for a cautious interpretation of the results and highlight the importance of further research with a more robust methodological approach.
